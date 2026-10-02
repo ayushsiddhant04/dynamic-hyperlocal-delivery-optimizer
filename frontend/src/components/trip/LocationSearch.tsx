@@ -17,6 +17,13 @@ export default function LocationSearch({
   onSelect,
 }: LocationSearchProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onSelectRef = useRef(onSelect);
+
+  // Always keep the latest callback without rebuilding
+  // the Mapbox Search Box.
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -60,21 +67,24 @@ export default function LocationSearch({
           coordinates.length >= 2
         ) {
           const name =
-            feature.properties?.name ||
+            feature.properties?.name ??
             "";
 
           const formatted =
-            feature.properties?.place_formatted ||
+            feature.properties?.place_formatted ??
             "";
 
-          const address = [name, formatted]
-            .filter(Boolean)
-            .join(", ");
+          const address =
+            [name, formatted]
+              .filter(Boolean)
+              .join(", ") ||
+            "Selected location";
 
+          // Keep the selected text visible.
           searchBox.value = address;
 
-          onSelect({
-            address: address || "Selected location",
+          onSelectRef.current({
+            address,
             coordinates: [
               Number(coordinates[0]),
               Number(coordinates[1]),
@@ -96,7 +106,7 @@ export default function LocationSearch({
       cancelled = true;
       container.innerHTML = "";
     };
-  }, [onSelect, placeholder]);
+  }, [placeholder]);
 
   return (
     <div
