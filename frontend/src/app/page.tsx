@@ -1,16 +1,13 @@
 "use client";
 
+import RouteMap from "@/components/map/RouteMap";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
   ChevronDown,
   Clock3,
-  Crosshair,
-  Layers3,
-  Map,
   MapPin,
-  Minus,
   Navigation,
   Package,
   Plus,
@@ -36,11 +33,13 @@ const createStop = (id: number): Stop => ({
 
 export default function Home() {
   const [startPoint, setStartPoint] = useState("");
+
   const [stops, setStops] = useState<Stop[]>([
     createStop(1),
     createStop(2),
     createStop(3),
   ]);
+
   const [method, setMethod] = useState("Recommended");
   const [priority, setPriority] = useState("Shortest time");
 
@@ -51,7 +50,9 @@ export default function Home() {
 
   const addStop = () => {
     const nextId =
-      stops.length > 0 ? Math.max(...stops.map((stop) => stop.id)) + 1 : 1;
+      stops.length > 0
+        ? Math.max(...stops.map((stop) => stop.id)) + 1
+        : 1;
 
     setStops((current) => [...current, createStop(nextId)]);
   };
@@ -66,6 +67,13 @@ export default function Home() {
         stop.id === id ? { ...stop, address } : stop
       )
     );
+  };
+
+  const resetPlanner = () => {
+    setStartPoint("");
+    setStops([createStop(1), createStop(2), createStop(3)]);
+    setMethod("Recommended");
+    setPriority("Shortest time");
   };
 
   return (
@@ -83,6 +91,7 @@ export default function Home() {
                 <h1 className="text-[17px] font-semibold tracking-tight">
                   RouteFlow
                 </h1>
+
                 <span className="hidden text-xs text-slate-400 sm:inline">
                   Delivery Optimizer
                 </span>
@@ -101,6 +110,7 @@ export default function Home() {
             </div>
 
             <button
+              type="button"
               aria-label="Settings"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
             >
@@ -135,7 +145,7 @@ export default function Home() {
             </div>
 
             <div className="flex-1 space-y-6 p-5">
-              {/* Start */}
+              {/* Starting point */}
               <div>
                 <label
                   htmlFor="start"
@@ -160,7 +170,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Stops */}
+              {/* Delivery stops */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <label className="text-xs font-medium text-slate-600">
@@ -180,7 +190,11 @@ export default function Home() {
                         layout
                         initial={{ opacity: 0, y: -8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                        exit={{
+                          opacity: 0,
+                          height: 0,
+                          marginBottom: 0,
+                        }}
                         className="group rounded-xl border border-slate-200 bg-white p-2"
                       >
                         <div className="flex items-center gap-2">
@@ -230,7 +244,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Settings */}
+              {/* Optimization settings */}
               <div className="space-y-3 border-t border-slate-100 pt-5">
                 <div className="flex items-center gap-2">
                   <Zap size={15} className="text-slate-500" />
@@ -258,6 +272,7 @@ export default function Home() {
                       <option>Nearest Neighbor</option>
                       <option>2-opt</option>
                     </select>
+
                     <ChevronDown
                       size={14}
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -284,6 +299,7 @@ export default function Home() {
                       <option>Minimum distance</option>
                       <option>Time-critical windows</option>
                     </select>
+
                     <ChevronDown
                       size={14}
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -293,6 +309,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Planner actions */}
             <div className="space-y-2 border-t border-slate-100 p-5">
               <button
                 type="button"
@@ -305,10 +322,7 @@ export default function Home() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setStartPoint("");
-                  setStops([createStop(1), createStop(2), createStop(3)]);
-                }}
+                onClick={resetPlanner}
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
               >
                 <RefreshCw size={14} />
@@ -317,88 +331,21 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* Map */}
+          {/* Real Mapbox map */}
           <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-slate-200 bg-[#edf2f7] shadow-sm">
-            {/* Map-like background */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:36px_36px]" />
+            <div className="absolute inset-0">
+              <RouteMap />
+            </div>
 
-            <div className="absolute left-[10%] top-[18%] h-[2px] w-[80%] rotate-[18deg] bg-slate-300/70" />
-            <div className="absolute left-[20%] top-[62%] h-[2px] w-[65%] rotate-[-13deg] bg-slate-300/70" />
-            <div className="absolute left-[45%] top-[8%] h-[85%] w-[2px] rotate-[9deg] bg-slate-300/70" />
-            <div className="absolute left-[18%] top-[34%] h-[70%] w-[2px] rotate-[48deg] bg-slate-300/70" />
-
-            {/* Map label */}
-            <div className="absolute left-5 top-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
-              <div className="flex items-center gap-2">
-                <Map size={15} className="text-slate-600" />
-                <span className="text-xs font-semibold text-slate-700">
-                  Interactive Map
-                </span>
-              </div>
-              <p className="mt-0.5 text-[10px] text-slate-400">
-                Map integration coming next
+            {/* Map workspace label */}
+            <div className="pointer-events-none absolute left-5 top-5 z-10 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
+              <p className="text-xs font-semibold text-slate-700">
+                Interactive Map
               </p>
-            </div>
 
-            {/* Placeholder markers */}
-            <div className="absolute left-[26%] top-[29%]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white shadow-lg ring-4 ring-white/80">
-                S
-              </div>
-            </div>
-
-            <div className="absolute left-[63%] top-[28%]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
-                1
-              </div>
-            </div>
-
-            <div className="absolute left-[72%] top-[52%]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
-                2
-              </div>
-            </div>
-
-            <div className="absolute left-[47%] top-[66%]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
-                3
-              </div>
-            </div>
-
-            {/* Map controls */}
-            <div className="absolute right-5 top-5 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <button
-                aria-label="Zoom in"
-                className="flex h-9 w-9 items-center justify-center border-b border-slate-100 text-slate-600 hover:bg-slate-50"
-              >
-                <Plus size={15} />
-              </button>
-              <button
-                aria-label="Zoom out"
-                className="flex h-9 w-9 items-center justify-center text-slate-600 hover:bg-slate-50"
-              >
-                <Minus size={15} />
-              </button>
-            </div>
-
-            <div className="absolute bottom-5 right-5 flex items-center gap-2">
-              <button
-                aria-label="Recenter map"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-              >
-                <Crosshair size={15} />
-              </button>
-
-              <button
-                aria-label="Map layers"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-              >
-                <Layers3 size={15} />
-              </button>
-            </div>
-
-            <div className="absolute bottom-5 left-5 rounded-lg border border-white/80 bg-white/85 px-2.5 py-1.5 text-[10px] text-slate-500 shadow-sm backdrop-blur">
-              RouteFlow map workspace
+              <p className="mt-0.5 text-[10px] text-slate-400">
+                RouteFlow workspace
+              </p>
             </div>
           </section>
 
@@ -411,6 +358,7 @@ export default function Home() {
                     <p className="text-xs font-medium text-slate-400">
                       Route planning
                     </p>
+
                     <h2 className="mt-1 text-base font-semibold">
                       Optimized Route
                     </h2>
@@ -457,6 +405,7 @@ export default function Home() {
                       <Navigation size={13} />
                       <span className="text-[10px]">Distance</span>
                     </div>
+
                     <p className="mt-1 text-sm font-semibold">-- km</p>
                   </div>
 
@@ -465,6 +414,7 @@ export default function Home() {
                       <Clock3 size={13} />
                       <span className="text-[10px]">ETA</span>
                     </div>
+
                     <p className="mt-1 text-sm font-semibold">-- min</p>
                   </div>
                 </div>
@@ -474,7 +424,10 @@ export default function Home() {
                     <Package size={13} />
                     <span className="text-[10px]">Stops</span>
                   </div>
-                  <p className="mt-1 text-sm font-semibold">{stops.length}</p>
+
+                  <p className="mt-1 text-sm font-semibold">
+                    {stops.length}
+                  </p>
                 </div>
               </div>
 
@@ -494,7 +447,10 @@ export default function Home() {
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
                 <Activity size={16} className="text-slate-500" />
-                <h3 className="text-sm font-semibold">Algorithm Analysis</h3>
+
+                <h3 className="text-sm font-semibold">
+                  Algorithm Analysis
+                </h3>
               </div>
 
               <p className="mt-1 text-[11px] text-slate-400">
@@ -511,7 +467,10 @@ export default function Home() {
                     key={name}
                     className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5"
                   >
-                    <span className="text-xs text-slate-600">{name}</span>
+                    <span className="text-xs text-slate-600">
+                      {name}
+                    </span>
+
                     <span className="text-xs font-semibold text-slate-400">
                       {value}
                     </span>
@@ -521,10 +480,12 @@ export default function Home() {
 
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
                 <Clock3 size={14} className="text-slate-400" />
+
                 <div>
                   <p className="text-[10px] font-medium text-slate-500">
                     Trip status
                   </p>
+
                   <p className="text-xs font-semibold text-slate-700">
                     No active delivery
                   </p>
