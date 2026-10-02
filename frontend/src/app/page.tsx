@@ -1,13 +1,13 @@
 "use client";
 
 import RouteMap from "@/components/map/RouteMap";
-import { useMemo, useState } from "react";
+import LocationSearch from "@/components/trip/LocationSearch";
+import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
   ChevronDown,
   Clock3,
-  MapPin,
   Navigation,
   Package,
   Plus,
@@ -33,6 +33,9 @@ const createStop = (id: number): Stop => ({
 
 export default function Home() {
   const [startPoint, setStartPoint] = useState("");
+  const [startCoordinates, setStartCoordinates] = useState<
+    [number, number] | null
+  >(null);
 
   const [stops, setStops] = useState<Stop[]>([
     createStop(1),
@@ -46,6 +49,17 @@ export default function Home() {
   const validStops = useMemo(
     () => stops.filter((stop) => stop.address.trim().length > 0),
     [stops]
+  );
+
+  const handleStartLocationSelect = useCallback(
+    (location: {
+      address: string;
+      coordinates: [number, number];
+    }) => {
+      setStartPoint(location.address);
+      setStartCoordinates(location.coordinates);
+    },
+    []
   );
 
   const addStop = () => {
@@ -71,6 +85,7 @@ export default function Home() {
 
   const resetPlanner = () => {
     setStartPoint("");
+    setStartCoordinates(null);
     setStops([createStop(1), createStop(2), createStop(3)]);
     setMethod("Recommended");
     setPriority("Shortest time");
@@ -147,27 +162,20 @@ export default function Home() {
             <div className="flex-1 space-y-6 p-5">
               {/* Starting point */}
               <div>
-                <label
-                  htmlFor="start"
-                  className="mb-2 block text-xs font-medium text-slate-600"
-                >
+                <label className="mb-2 block text-xs font-medium text-slate-600">
                   Starting point
                 </label>
 
-                <div className="relative">
-                  <MapPin
-                    size={16}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
+                <LocationSearch
+                  placeholder="Search shop or starting point"
+                  onSelect={handleStartLocationSelect}
+                />
 
-                  <input
-                    id="start"
-                    value={startPoint}
-                    onChange={(event) => setStartPoint(event.target.value)}
-                    placeholder="Search shop or starting point"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
-                  />
-                </div>
+                {startCoordinates && (
+                  <p className="mt-2 text-[10px] text-emerald-600">
+                    Selected: {startPoint}
+                  </p>
+                )}
               </div>
 
               {/* Delivery stops */}
@@ -248,6 +256,7 @@ export default function Home() {
               <div className="space-y-3 border-t border-slate-100 pt-5">
                 <div className="flex items-center gap-2">
                   <Zap size={15} className="text-slate-500" />
+
                   <p className="text-xs font-medium text-slate-600">
                     Optimization settings
                   </p>
@@ -313,7 +322,7 @@ export default function Home() {
             <div className="space-y-2 border-t border-slate-100 p-5">
               <button
                 type="button"
-                disabled={!startPoint || validStops.length < 2}
+                disabled={!startCoordinates || validStops.length < 2}
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               >
                 <Route size={16} />
@@ -337,7 +346,6 @@ export default function Home() {
               <RouteMap />
             </div>
 
-            {/* Map workspace label */}
             <div className="pointer-events-none absolute left-5 top-5 z-10 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-xs font-semibold text-slate-700">
                 Interactive Map

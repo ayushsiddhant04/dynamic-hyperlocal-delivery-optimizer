@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapboxGeocoder } from "@mapbox/search-js-web";
 
 type Coordinates = [number, number];
 
@@ -18,7 +17,6 @@ export default function LocationSearch({
   onSelect,
 }: LocationSearchProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const geocoderRef = useRef<MapboxGeocoder | null>(null);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -28,44 +26,54 @@ export default function LocationSearch({
       return;
     }
 
-    const geocoder = new MapboxGeocoder();
+    let cancelled = false;
 
-    geocoder.accessToken = token;
+    const initializeGeocoder = async () => {
+      const { MapboxGeocoder } = await import("@mapbox/search-js-web");
 
-    geocoder.options = {
-      language: "en",
-      country: "IN",
-      types: "address,poi",
+      if (cancelled) {
+        return;
+      }
+
+      const geocoder = new MapboxGeocoder();
+
+      geocoder.accessToken = token;
+
+      geocoder.options = {
+        language: "en",
+        country: "IN",
+        types: "address,poi",
+      };
+
+      geocoder.placeholder = placeholder;
+
+      geocoder.addEventListener("retrieve", (event) => {
+        const feature = event.detail;
+        const coordinates = feature?.geometry?.coordinates;
+
+        if (Array.isArray(coordinates) && coordinates.length >= 2) {
+          onSelect({
+            address:
+              feature.properties?.full_address ||
+              feature.properties?.name ||
+              "",
+            coordinates: [
+              Number(coordinates[0]),
+              Number(coordinates[1]),
+            ],
+          });
+        }
+      });
+
+      container.innerHTML = "";
+
+      container.appendChild(geocoder as unknown as Node);
     };
 
-    geocoder.placeholder = placeholder;
-
-    geocoder.addEventListener("retrieve", (event) => {
-      const feature = event.detail;
-      const coordinates = feature?.geometry?.coordinates;
-
-      if (Array.isArray(coordinates) && coordinates.length >= 2) {
-        onSelect({
-          address:
-            feature.properties?.full_address ||
-            feature.properties?.name ||
-            "",
-          coordinates: [
-            Number(coordinates[0]),
-            Number(coordinates[1]),
-          ],
-        });
-      }
-    });
-
-    container.innerHTML = "";
-
-    container.appendChild(geocoder as unknown as Node);
-
-    geocoderRef.current = geocoder;
+    initializeGeocoder();
 
     return () => {
-      geocoderRef.current = null;
+      cancelled = true;
       container.innerHTML = "";
     };
   }, [onSelect, placeholder]);
