@@ -2,7 +2,7 @@
 
 import RouteMap from "@/components/map/RouteMap";
 import LocationSearch from "@/components/trip/LocationSearch";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
@@ -23,12 +23,14 @@ type Stop = {
   id: number;
   name: string;
   address: string;
+  coordinates: [number, number] | null;
 };
 
 const createStop = (id: number): Stop => ({
   id,
   name: `Customer ${String.fromCharCode(64 + id)}`,
   address: "",
+  coordinates: null,
 });
 
 export default function Home() {
@@ -46,10 +48,7 @@ export default function Home() {
   const [method, setMethod] = useState("Recommended");
   const [priority, setPriority] = useState("Shortest time");
 
-  const validStops = useMemo(
-    () => stops.filter((stop) => stop.address.trim().length > 0),
-    [stops]
-  );
+
 
   const handleStartLocationSelect = useCallback(
     (location: {
@@ -75,13 +74,29 @@ export default function Home() {
     setStops((current) => current.filter((stop) => stop.id !== id));
   };
 
-  const updateStopAddress = (id: number, address: string) => {
-    setStops((current) =>
-      current.map((stop) =>
-        stop.id === id ? { ...stop, address } : stop
-      )
-    );
-  };
+
+  const handleStopLocationSelect = useCallback(
+    (
+      id: number,
+      location: {
+        address: string;
+        coordinates: [number, number];
+      }
+    ) => {
+      setStops((current) =>
+        current.map((stop) =>
+          stop.id === id
+            ? {
+                ...stop,
+                address: location.address,
+                coordinates: location.coordinates,
+              }
+            : stop
+        )
+      );
+    },
+    []
+  );
 
   const resetPlanner = () => {
     setStartPoint("");
@@ -172,7 +187,7 @@ export default function Home() {
                 />
 
                 {startCoordinates && (
-                  <p className="mt-2 text-[10px] text-emerald-600">
+                  <p className="mt-2 truncate text-[10px] text-emerald-600">
                     Selected: {startPoint}
                   </p>
                 )}
@@ -215,17 +230,21 @@ export default function Home() {
                               {stop.name}
                             </p>
 
-                            <input
-                              value={stop.address}
-                              onChange={(event) =>
-                                updateStopAddress(
+                            <LocationSearch
+                              placeholder="Delivery location"
+                              onSelect={(location) =>
+                                handleStopLocationSelect(
                                   stop.id,
-                                  event.target.value
+                                  location
                                 )
                               }
-                              placeholder="Delivery location"
-                              className="w-full border-0 bg-transparent p-0 text-xs text-slate-800 outline-none placeholder:text-slate-400"
                             />
+
+                            {stop.coordinates && (
+                              <p className="mt-1 text-[9px] text-emerald-600">
+                                Location selected
+                              </p>
+                            )}
                           </div>
 
                           <button
@@ -322,7 +341,10 @@ export default function Home() {
             <div className="space-y-2 border-t border-slate-100 p-5">
               <button
                 type="button"
-                disabled={!startCoordinates || validStops.length < 2}
+                disabled={
+                  !startCoordinates ||
+                  stops.filter((stop) => stop.coordinates).length < 2
+                }
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               >
                 <Route size={16} />
@@ -384,27 +406,25 @@ export default function Home() {
                 </p>
 
                 <div className="space-y-2">
-                  {["Customer A", "Customer B", "Customer C", "Customer D"].map(
-                    (customer, index) => (
-                      <div
-                        key={customer}
-                        className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
-                      >
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
-                          {index + 1}
-                        </div>
-
-                        <span className="text-xs font-medium text-slate-700">
-                          {customer}
-                        </span>
-
-                        <ChevronDown
-                          size={13}
-                          className="ml-auto rotate-[-90deg] text-slate-300"
-                        />
+                  {stops.map((stop, index) => (
+                    <div
+                      key={stop.id}
+                      className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
+                        {index + 1}
                       </div>
-                    )
-                  )}
+
+                      <span className="truncate text-xs font-medium text-slate-700">
+                        {stop.name}
+                      </span>
+
+                      <ChevronDown
+                        size={13}
+                        className="ml-auto rotate-[-90deg] text-slate-300"
+                      />
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2">
