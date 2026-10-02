@@ -59,11 +59,22 @@ export default function LocationSearch({
           Array.isArray(coordinates) &&
           coordinates.length >= 2
         ) {
+          const name =
+            feature.properties?.name ||
+            "";
+
+          const formatted =
+            feature.properties?.place_formatted ||
+            "";
+
+          const address = [name, formatted]
+            .filter(Boolean)
+            .join(", ");
+
+          searchBox.value = address;
+
           onSelect({
-            address:
-  feature.properties?.full_address ??
-  feature.properties?.name ??
-  "Selected location",
+            address: address || "Selected location",
             coordinates: [
               Number(coordinates[0]),
               Number(coordinates[1]),
