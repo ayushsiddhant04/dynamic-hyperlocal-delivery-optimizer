@@ -61,9 +61,9 @@ export default function LocationSearch({
         ) {
           onSelect({
             address:
-              feature.properties?.full_address ||
-              feature.properties?.name ||
-              "",
+  feature.properties?.full_address ??
+  feature.properties?.name ??
+  "Selected location",
             coordinates: [
               Number(coordinates[0]),
               Number(coordinates[1]),
