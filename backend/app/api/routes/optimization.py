@@ -40,16 +40,24 @@ def optimize_route(request: OptimizationRequest) -> OptimizationResult:
         )
 
     try:
+        algorithm_parameters = {
+            **(request.parameters or {}),
+            "distance_weight": request.objective.distance_weight,
+            "time_weight": request.objective.time_weight,
+        }
+
         return optimizer.optimize(
             depot=request.depot,
             stops=request.stops,
-            parameters=request.parameters,
+            parameters=algorithm_parameters,
         )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
             detail=str(exc),
         ) from exc
+
     except Exception as exc:
         raise HTTPException(
             status_code=500,

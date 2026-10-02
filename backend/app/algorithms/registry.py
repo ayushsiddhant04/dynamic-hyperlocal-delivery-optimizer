@@ -5,6 +5,7 @@ from app.algorithms.two_opt import TwoOptOptimizer
 from app.algorithms.genetic import GeneticOptimizer
 from app.algorithms.simulated_annealing import SimulatedAnnealingOptimizer
 from app.models.schemas import AlgorithmMetadata
+from app.algorithms.brute_force import BruteForceOptimizer
 
 
 class AlgorithmRegistry:
@@ -22,6 +23,7 @@ class AlgorithmRegistry:
         self.register(TwoOptOptimizer)
         self.register(GeneticOptimizer)
         self.register(SimulatedAnnealingOptimizer)
+        self.register(BruteForceOptimizer)
 
     def register(self, optimizer_cls: Type[BaseRouteOptimizer]):
         """Register an optimizer class."""

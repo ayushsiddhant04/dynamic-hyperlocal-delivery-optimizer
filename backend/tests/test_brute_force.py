@@ -1,8 +1,8 @@
-from app.algorithms.nearest_neighbor import NearestNeighborOptimizer
+from app.algorithms.brute_force import BruteForceOptimizer
 from app.models.schemas import DeliveryStop, Location
 
 
-def test_nearest_neighbor_orders_stops_greedily():
+def test_brute_force_finds_best_round_trip(monkeypatch):
     depot = Location(
         latitude=12.9716,
         longitude=77.5946,
@@ -36,7 +36,26 @@ def test_nearest_neighbor_orders_stops_greedily():
         ),
     ]
 
-    optimizer = NearestNeighborOptimizer()
+    distance_matrix = [
+        [0.0, 1.0, 2.0, 2.0],
+        [1.0, 0.0, 100.0, 100.0],
+        [2.0, 100.0, 0.0, 1.0],
+        [2.0, 1.0, 100.0, 0.0],
+    ]
+
+    duration_matrix = [
+        [0.0, 1.0, 2.0, 2.0],
+        [1.0, 0.0, 100.0, 100.0],
+        [2.0, 100.0, 0.0, 1.0],
+        [2.0, 1.0, 100.0, 0.0],
+    ]
+
+    monkeypatch.setattr(
+        "app.algorithms.brute_force.compute_road_matrices",
+        lambda locations: (distance_matrix, duration_matrix),
+    )
+
+    optimizer = BruteForceOptimizer()
 
     result = optimizer.optimize(
         depot=depot,
@@ -44,9 +63,9 @@ def test_nearest_neighbor_orders_stops_greedily():
     )
 
     assert result.status == "success"
-    assert result.algorithm_used == "nearest_neighbor"
-    assert result.ordered_stop_ids == ["A", "C", "B"]
+    assert result.algorithm_used == "brute_force"
+    assert result.ordered_stop_ids == ["B", "C", "A"]
     assert result.metrics.stop_count == 3
-    assert result.metrics.total_distance_km > 0
-    assert result.metrics.total_duration_minutes > 0
+    assert result.metrics.total_distance_km == 5.0
+    assert result.metrics.total_duration_minutes == 5.0
     assert result.computation_time_ms >= 0

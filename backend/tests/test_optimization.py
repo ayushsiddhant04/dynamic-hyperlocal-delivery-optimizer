@@ -40,6 +40,10 @@ def test_optimize_route_with_nearest_neighbor():
             },
         ],
         "algorithm": "nearest_neighbor",
+        "objective": {
+    "distance_weight": 0.5,
+    "time_weight": 0.5,
+},
     }
 
     response = client.post("/api/optimize", json=payload)
@@ -53,5 +57,5 @@ def test_optimize_route_with_nearest_neighbor():
     assert data["ordered_stop_ids"] == ["A", "C", "B"]
     assert data["metrics"]["stop_count"] == 3
     assert data["metrics"]["total_distance_km"] > 0
-    assert data["metrics"]["estimated_duration_minutes"] > 0
+    assert data["metrics"]["total_duration_minutes"] > 0
     assert data["computation_time_ms"] >= 0
