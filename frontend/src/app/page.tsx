@@ -1,297 +1,539 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { getBackendHealth, getBackendStatus, API_BASE_URL } from "@/lib/api";
-import { HealthResponse, SystemStatusResponse } from "@/types";
+import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  Activity,
+  ChevronDown,
+  Clock3,
+  Crosshair,
+  Layers3,
+  Map,
+  MapPin,
+  Minus,
+  Navigation,
+  Package,
+  Plus,
+  RefreshCw,
+  Route,
+  Settings2,
+  Truck,
+  X,
+  Zap,
+} from "lucide-react";
+
+type Stop = {
+  id: number;
+  name: string;
+  address: string;
+};
+
+const createStop = (id: number): Stop => ({
+  id,
+  name: `Customer ${String.fromCharCode(64 + id)}`,
+  address: "",
+});
 
 export default function Home() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [status, setStatus] = useState<SystemStatusResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastChecked, setLastChecked] = useState<string>("");
+  const [startPoint, setStartPoint] = useState("");
+  const [stops, setStops] = useState<Stop[]>([
+    createStop(1),
+    createStop(2),
+    createStop(3),
+  ]);
+  const [method, setMethod] = useState("Recommended");
+  const [priority, setPriority] = useState("Shortest time");
 
-  const fetchStatusData = useCallback(async () => {
-    try {
-      const [healthData, statusData] = await Promise.all([
-        getBackendHealth(),
-        getBackendStatus(),
-      ]);
-      setHealth(healthData);
-      setStatus(statusData);
-      setError(null);
-      setLastChecked(new Date().toLocaleTimeString());
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to connect to backend server";
-      setError(message);
-      setHealth(null);
-      setStatus(null);
-      setLastChecked(new Date().toLocaleTimeString());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const validStops = useMemo(
+    () => stops.filter((stop) => stop.address.trim().length > 0),
+    [stops]
+  );
 
-  const handleManualRefresh = async () => {
-    setLoading(true);
-    await fetchStatusData();
+  const addStop = () => {
+    const nextId =
+      stops.length > 0 ? Math.max(...stops.map((stop) => stop.id)) + 1 : 1;
+
+    setStops((current) => [...current, createStop(nextId)]);
   };
 
-  useEffect(() => {
-    let ignore = false;
-    async function init() {
-      try {
-        const [healthData, statusData] = await Promise.all([
-          getBackendHealth(),
-          getBackendStatus(),
-        ]);
-        if (!ignore) {
-          setHealth(healthData);
-          setStatus(statusData);
-          setError(null);
-          setLastChecked(new Date().toLocaleTimeString());
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          const message =
-            err instanceof Error ? err.message : "Failed to connect to backend server";
-          setError(message);
-          setHealth(null);
-          setStatus(null);
-          setLastChecked(new Date().toLocaleTimeString());
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    }
-    init();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const removeStop = (id: number) => {
+    setStops((current) => current.filter((stop) => stop.id !== id));
+  };
+
+  const updateStopAddress = (id: number, address: string) => {
+    setStops((current) =>
+      current.map((stop) =>
+        stop.id === id ? { ...stop, address } : stop
+      )
+    );
+  };
 
   return (
-    <main className="page-container">
+    <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
       {/* Header */}
-      <section className="hero-section">
-        <div className="brand-badge">
-          <span className="brand-badge-pulse" />
-          Foundation Architecture &bull; Step 1
-        </div>
-        <h1 className="hero-title">
-          Route<span className="hero-gradient-text">Flow</span>
-        </h1>
-        <p className="hero-description">
-          Dynamic Hyperlocal Delivery Optimizer &bull; Foundation Layer
-        </p>
-      </section>
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 lg:px-7">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
+              <Truck size={20} strokeWidth={2.2} />
+            </div>
 
-      {/* Backend Status & Health Diagnostic */}
-      <section>
-        <div className="section-title-wrap">
-          <h2 className="section-title">
-            <span>⚡</span> Backend Connectivity Status
-          </h2>
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-            {lastChecked && (
-              <span className="section-subtitle">
-                Last checked: {lastChecked}
-              </span>
-            )}
-            <button
-              onClick={handleManualRefresh}
-              disabled={loading}
-              className="btn-secondary"
-              style={{ padding: "0.4rem 0.85rem", fontSize: "0.82rem" }}
-            >
-              {loading ? "Checking..." : "↻ Test Connection"}
-            </button>
-          </div>
-        </div>
-
-        <div className="status-banner">
-          {/* Health Endpoint Card */}
-          <div
-            className="status-card"
-            style={{ "--card-accent": health ? "#10b981" : "#f43f5e" } as React.CSSProperties}
-          >
-            <div className="card-header">
-              <span className="card-label">Health Check (/api/health)</span>
-              <span
-                className={`status-pill ${
-                  loading ? "checking" : health ? "operational" : "offline"
-                }`}
-              >
-                {loading ? "Checking" : health ? "Healthy" : "Offline"}
-              </span>
-            </div>
-            <div className="card-value">
-              {loading ? "Probing..." : health ? health.status.toUpperCase() : "Unreachable"}
-            </div>
-            <div className="card-subtext">
-              Service: <span className="code-pill">{health?.service || "routeflow-backend"}</span>
-              {health?.timestamp && (
-                <div style={{ fontSize: "0.75rem", marginTop: "0.3rem" }}>
-                  Server time: {health.timestamp}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* System Status Endpoint Card */}
-          <div
-            className="status-card"
-            style={{ "--card-accent": status ? "#6366f1" : "#f43f5e" } as React.CSSProperties}
-          >
-            <div className="card-header">
-              <span className="card-label">System Status (/api/status)</span>
-              <span
-                className={`status-pill ${
-                  loading ? "checking" : status ? "operational" : "offline"
-                }`}
-              >
-                {loading ? "Checking" : status ? "Operational" : "Offline"}
-              </span>
-            </div>
-            <div className="card-value">
-              {status ? `v${status.version}` : loading ? "..." : "Offline"}
-            </div>
-            <div className="card-subtext">
-              Target URL: <span className="code-pill">{API_BASE_URL}</span>
-              {status && (
-                <div style={{ fontSize: "0.75rem", marginTop: "0.3rem" }}>
-                  Uptime: {status.uptime_seconds}s | Env: {status.environment}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Algorithm Modules Card */}
-          <div
-            className="status-card"
-            style={{ "--card-accent": "#a855f7" } as React.CSSProperties}
-          >
-            <div className="card-header">
-              <span className="card-label">Algorithm Registry</span>
-              <span className="status-pill operational">
-                {status?.available_algorithms.length ?? 0} Registered
-              </span>
-            </div>
-            <div className="card-value">
-              {status?.available_algorithms.length ?? 0} Solvers Ready
-            </div>
-            <div className="card-subtext">
-              Extensible BaseRouteOptimizer interface
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div
-            style={{
-              marginTop: "1.25rem",
-              padding: "1rem 1.25rem",
-              background: "rgba(244, 63, 94, 0.1)",
-              border: "1px solid rgba(244, 63, 94, 0.3)",
-              borderRadius: "var(--radius-sm)",
-              color: "#fca5a5",
-              fontSize: "0.9rem",
-            }}
-          >
-            <strong>Backend Connection Notice:</strong> {error}. Ensure FastAPI is running on{" "}
-            <code>{API_BASE_URL}</code>.
-          </div>
-        )}
-      </section>
-
-      {/* Registered Algorithm Interfaces */}
-      {status && status.available_algorithms.length > 0 && (
-        <section>
-          <div className="section-title-wrap">
             <div>
-              <h2 className="section-title">
-                <span>📐</span> Registered Optimization Algorithms
-              </h2>
-              <p className="section-subtitle">
-                Algorithm modules registered in the backend engine via BaseRouteOptimizer.
+              <div className="flex items-center gap-2">
+                <h1 className="text-[17px] font-semibold tracking-tight">
+                  RouteFlow
+                </h1>
+                <span className="hidden text-xs text-slate-400 sm:inline">
+                  Delivery Optimizer
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                Smarter Routes. Faster Deliveries.
               </p>
             </div>
           </div>
 
-          <div className="grid-4">
-            {status.available_algorithms.map((algo) => (
-              <div key={algo.id} className="module-card">
-                <div className="module-header">
-                  <span className="module-name">{algo.name}</span>
-                  <span className="module-badge">{algo.paradigm}</span>
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-slate-600">System Online</span>
+            </div>
+
+            <button
+              aria-label="Settings"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              <Settings2 size={17} />
+            </button>
+
+            <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white sm:flex">
+              A
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main */}
+      <section className="mx-auto max-w-[1800px] p-4 lg:p-6">
+        <div className="grid min-h-[calc(100vh-104px)] gap-4 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+          {/* Planner */}
+          <aside className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-5">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
+                  <Route size={17} className="text-slate-700" />
                 </div>
-                <p className="module-desc">{algo.description}</p>
-                <div className="module-meta">
-                  <span>Complexity:</span>
-                  <span className="module-complexity">{algo.time_complexity}</span>
+
+                <div>
+                  <h2 className="text-sm font-semibold">Plan Delivery</h2>
+                  <p className="text-xs text-slate-500">
+                    Build your delivery trip
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
 
-      {/* Foundation Verification Summary */}
-      <section className="checklist-card">
-        <h2 className="section-title" style={{ fontSize: "1.2rem" }}>
-          <span>🏛️</span> Foundation Verification
-        </h2>
-        <ul className="checklist-items">
-          <li className="checklist-item">
-            <span className="checklist-icon done">✓</span>
-            <div>
-              <strong>Frontend Setup</strong>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "2px" }}>
-                Next.js App Router, TypeScript, Vanilla CSS design tokens, typed API client.
-              </p>
-            </div>
-          </li>
-          <li className="checklist-item">
-            <span className="checklist-icon done">✓</span>
-            <div>
-              <strong>Backend FastAPI Application</strong>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "2px" }}>
-                Configured with CORS, Pydantic schemas, <code>/api/health</code>, and <code>/api/status</code>.
-              </p>
-            </div>
-          </li>
-          <li className="checklist-item">
-            <span className="checklist-icon done">✓</span>
-            <div>
-              <strong>Algorithm Engine Foundation</strong>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "2px" }}>
-                <code>BaseRouteOptimizer</code> abstract base class and <code>AlgorithmRegistry</code> with 4 modular solvers.
-              </p>
-            </div>
-          </li>
-          <li className="checklist-item">
-            <span className="checklist-icon done">✓</span>
-            <div>
-              <strong>Distance Service Utilities</strong>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "2px" }}>
-                Mathematical Haversine distance, travel time estimation, and distance matrix generation.
-              </p>
-            </div>
-          </li>
-        </ul>
-      </section>
+            <div className="flex-1 space-y-6 p-5">
+              {/* Start */}
+              <div>
+                <label
+                  htmlFor="start"
+                  className="mb-2 block text-xs font-medium text-slate-600"
+                >
+                  Starting point
+                </label>
 
-      {/* Footer */}
-      <footer className="page-footer">
-        <div>RouteFlow &bull; Hyperlocal Route Optimizer</div>
-        <div>
-          Frontend: <span className="code-pill">localhost:3000</span> &bull; Backend:{" "}
-          <span className="code-pill">localhost:8000</span>
+                <div className="relative">
+                  <MapPin
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+
+                  <input
+                    id="start"
+                    value={startPoint}
+                    onChange={(event) => setStartPoint(event.target.value)}
+                    placeholder="Search shop or starting point"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* Stops */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-medium text-slate-600">
+                    Delivery stops
+                  </label>
+
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
+                    {stops.length} stops
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  <AnimatePresence initial={false}>
+                    {stops.map((stop, index) => (
+                      <motion.div
+                        key={stop.id}
+                        layout
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                        className="group rounded-xl border border-slate-200 bg-white p-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-semibold text-white">
+                            {index + 1}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="mb-1 text-[10px] font-medium text-slate-500">
+                              {stop.name}
+                            </p>
+
+                            <input
+                              value={stop.address}
+                              onChange={(event) =>
+                                updateStopAddress(
+                                  stop.id,
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Delivery location"
+                              className="w-full border-0 bg-transparent p-0 text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeStop(stop.id)}
+                            aria-label={`Remove ${stop.name}`}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addStop}
+                  className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  <Plus size={15} />
+                  Add delivery stop
+                </button>
+              </div>
+
+              {/* Settings */}
+              <div className="space-y-3 border-t border-slate-100 pt-5">
+                <div className="flex items-center gap-2">
+                  <Zap size={15} className="text-slate-500" />
+                  <p className="text-xs font-medium text-slate-600">
+                    Optimization settings
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="method"
+                    className="mb-1.5 block text-[11px] text-slate-500"
+                  >
+                    Method
+                  </label>
+
+                  <div className="relative">
+                    <select
+                      id="method"
+                      value={method}
+                      onChange={(event) => setMethod(event.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
+                    >
+                      <option>Recommended</option>
+                      <option>Nearest Neighbor</option>
+                      <option>2-opt</option>
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="priority"
+                    className="mb-1.5 block text-[11px] text-slate-500"
+                  >
+                    Priority
+                  </label>
+
+                  <div className="relative">
+                    <select
+                      id="priority"
+                      value={priority}
+                      onChange={(event) => setPriority(event.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
+                    >
+                      <option>Shortest time</option>
+                      <option>Minimum distance</option>
+                      <option>Time-critical windows</option>
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t border-slate-100 p-5">
+              <button
+                type="button"
+                disabled={!startPoint || validStops.length < 2}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                <Route size={16} />
+                Optimize Route
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStartPoint("");
+                  setStops([createStop(1), createStop(2), createStop(3)]);
+                }}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+              >
+                <RefreshCw size={14} />
+                Reset
+              </button>
+            </div>
+          </aside>
+
+          {/* Map */}
+          <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-slate-200 bg-[#edf2f7] shadow-sm">
+            {/* Map-like background */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:36px_36px]" />
+
+            <div className="absolute left-[10%] top-[18%] h-[2px] w-[80%] rotate-[18deg] bg-slate-300/70" />
+            <div className="absolute left-[20%] top-[62%] h-[2px] w-[65%] rotate-[-13deg] bg-slate-300/70" />
+            <div className="absolute left-[45%] top-[8%] h-[85%] w-[2px] rotate-[9deg] bg-slate-300/70" />
+            <div className="absolute left-[18%] top-[34%] h-[70%] w-[2px] rotate-[48deg] bg-slate-300/70" />
+
+            {/* Map label */}
+            <div className="absolute left-5 top-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
+              <div className="flex items-center gap-2">
+                <Map size={15} className="text-slate-600" />
+                <span className="text-xs font-semibold text-slate-700">
+                  Interactive Map
+                </span>
+              </div>
+              <p className="mt-0.5 text-[10px] text-slate-400">
+                Map integration coming next
+              </p>
+            </div>
+
+            {/* Placeholder markers */}
+            <div className="absolute left-[26%] top-[29%]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white shadow-lg ring-4 ring-white/80">
+                S
+              </div>
+            </div>
+
+            <div className="absolute left-[63%] top-[28%]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
+                1
+              </div>
+            </div>
+
+            <div className="absolute left-[72%] top-[52%]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
+                2
+              </div>
+            </div>
+
+            <div className="absolute left-[47%] top-[66%]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-semibold text-white shadow-md">
+                3
+              </div>
+            </div>
+
+            {/* Map controls */}
+            <div className="absolute right-5 top-5 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <button
+                aria-label="Zoom in"
+                className="flex h-9 w-9 items-center justify-center border-b border-slate-100 text-slate-600 hover:bg-slate-50"
+              >
+                <Plus size={15} />
+              </button>
+              <button
+                aria-label="Zoom out"
+                className="flex h-9 w-9 items-center justify-center text-slate-600 hover:bg-slate-50"
+              >
+                <Minus size={15} />
+              </button>
+            </div>
+
+            <div className="absolute bottom-5 right-5 flex items-center gap-2">
+              <button
+                aria-label="Recenter map"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+              >
+                <Crosshair size={15} />
+              </button>
+
+              <button
+                aria-label="Map layers"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+              >
+                <Layers3 size={15} />
+              </button>
+            </div>
+
+            <div className="absolute bottom-5 left-5 rounded-lg border border-white/80 bg-white/85 px-2.5 py-1.5 text-[10px] text-slate-500 shadow-sm backdrop-blur">
+              RouteFlow map workspace
+            </div>
+          </section>
+
+          {/* Route summary */}
+          <aside className="flex flex-col gap-4">
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-400">
+                      Route planning
+                    </p>
+                    <h2 className="mt-1 text-base font-semibold">
+                      Optimized Route
+                    </h2>
+                  </div>
+
+                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                    Ready
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <p className="mb-3 text-xs font-medium text-slate-500">
+                  Delivery order
+                </p>
+
+                <div className="space-y-2">
+                  {["Customer A", "Customer B", "Customer C", "Customer D"].map(
+                    (customer, index) => (
+                      <div
+                        key={customer}
+                        className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
+                      >
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
+                          {index + 1}
+                        </div>
+
+                        <span className="text-xs font-medium text-slate-700">
+                          {customer}
+                        </span>
+
+                        <ChevronDown
+                          size={13}
+                          className="ml-auto rotate-[-90deg] text-slate-300"
+                        />
+                      </div>
+                    )
+                  )}
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <Navigation size={13} />
+                      <span className="text-[10px]">Distance</span>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold">-- km</p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <Clock3 size={13} />
+                      <span className="text-[10px]">ETA</span>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold">-- min</p>
+                  </div>
+                </div>
+
+                <div className="mt-2 rounded-xl bg-slate-50 p-3">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Package size={13} />
+                    <span className="text-[10px]">Stops</span>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold">{stops.length}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 p-5">
+                <button
+                  type="button"
+                  disabled
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-semibold text-slate-400"
+                >
+                  <Navigation size={16} />
+                  Start Delivery
+                </button>
+              </div>
+            </section>
+
+            {/* Analysis preview */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Activity size={16} className="text-slate-500" />
+                <h3 className="text-sm font-semibold">Algorithm Analysis</h3>
+              </div>
+
+              <p className="mt-1 text-[11px] text-slate-400">
+                Available after optimization
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {[
+                  ["Nearest Neighbor", "--"],
+                  ["2-opt", "--"],
+                  ["Brute Force", "--"],
+                ].map(([name, value]) => (
+                  <div
+                    key={name}
+                    className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5"
+                  >
+                    <span className="text-xs text-slate-600">{name}</span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
+                <Clock3 size={14} className="text-slate-400" />
+                <div>
+                  <p className="text-[10px] font-medium text-slate-500">
+                    Trip status
+                  </p>
+                  <p className="text-xs font-semibold text-slate-700">
+                    No active delivery
+                  </p>
+                </div>
+              </div>
+            </section>
+          </aside>
         </div>
-      </footer>
+      </section>
     </main>
   );
 }
