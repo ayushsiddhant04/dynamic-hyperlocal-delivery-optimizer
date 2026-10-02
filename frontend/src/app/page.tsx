@@ -365,7 +365,15 @@ export default function Home() {
           {/* Real Mapbox map */}
           <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-slate-200 bg-[#edf2f7] shadow-sm">
             <div className="absolute inset-0">
-              <RouteMap startCoordinates={startCoordinates} />
+              <RouteMap
+  startCoordinates={startCoordinates}
+  stopLocations={stops
+    .filter((stop) => stop.coordinates !== null)
+    .map((stop) => ({
+      id: stop.id,
+      coordinates: stop.coordinates as [number, number],
+    }))}
+/>
             </div>
 
             <div className="pointer-events-none absolute left-5 top-5 z-10 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
