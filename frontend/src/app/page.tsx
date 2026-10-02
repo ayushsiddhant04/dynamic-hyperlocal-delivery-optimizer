@@ -2,6 +2,11 @@
 
 import RouteMap from "@/components/map/RouteMap";
 import LocationSearch from "@/components/trip/LocationSearch";
+import { optimizeRoute } from "@/lib/api";
+import type {
+  OptimizationRequest,
+  OptimizationResult,
+} from "@/types";
 import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -28,7 +33,7 @@ type Stop = {
 
 const createStop = (id: number): Stop => ({
   id,
-  name: `Customer ${String.fromCharCode(64 + id)}`,
+  name: `Delivery ${id}`,
   address: "",
   coordinates: null,
 });
@@ -48,7 +53,12 @@ export default function Home() {
   const [method, setMethod] = useState("Recommended");
   const [priority, setPriority] = useState("Shortest time");
 
+  const [optimizationResult, setOptimizationResult] =
+    useState<OptimizationResult | null>(null);
 
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationError, setOptimizationError] =
+    useState<string | null>(null);
 
   const handleStartLocationSelect = useCallback(
     (location: {
@@ -57,6 +67,8 @@ export default function Home() {
     }) => {
       setStartPoint(location.address);
       setStartCoordinates(location.coordinates);
+      setOptimizationResult(null);
+      setOptimizationError(null);
     },
     []
   );
@@ -68,12 +80,18 @@ export default function Home() {
         : 1;
 
     setStops((current) => [...current, createStop(nextId)]);
+    setOptimizationResult(null);
+    setOptimizationError(null);
   };
 
   const removeStop = (id: number) => {
-    setStops((current) => current.filter((stop) => stop.id !== id));
-  };
+    setStops((current) =>
+      current.filter((stop) => stop.id !== id)
+    );
 
+    setOptimizationResult(null);
+    setOptimizationError(null);
+  };
 
   const handleStopLocationSelect = useCallback(
     (
@@ -94,17 +112,109 @@ export default function Home() {
             : stop
         )
       );
+
+      setOptimizationResult(null);
+      setOptimizationError(null);
     },
     []
   );
 
+  const handleOptimizeRoute = async () => {
+    setOptimizationError(null);
+
+    if (!startCoordinates) {
+      setOptimizationError(
+        "Please select a starting point."
+      );
+      return;
+    }
+
+    const selectedStops = stops.filter(
+      (stop) => stop.coordinates !== null
+    );
+
+    if (selectedStops.length < 2) {
+      setOptimizationError(
+        "Please select at least two delivery locations."
+      );
+      return;
+    }
+
+    const algorithm =
+      method === "Recommended" ||
+      method === "Nearest Neighbor"
+        ? "nearest_neighbor"
+        : method === "2-opt"
+          ? "two_opt"
+          : "nearest_neighbor";
+
+    const request: OptimizationRequest = {
+      depot: {
+        latitude: startCoordinates[1],
+        longitude: startCoordinates[0],
+        address: startPoint,
+        name: "Starting Point",
+      },
+
+      stops: selectedStops.map((stop) => ({
+        id: String(stop.id),
+        location: {
+          latitude: stop.coordinates![1],
+          longitude: stop.coordinates![0],
+          address: stop.address,
+          name: stop.name,
+        },
+        package_count: 1,
+        priority:
+          priority === "Time-critical windows" ? 5 : 1,
+      })),
+
+      algorithm,
+    };
+
+    try {
+      setIsOptimizing(true);
+
+      const result = await optimizeRoute(request);
+
+      setOptimizationResult(result);
+    } catch (error) {
+      setOptimizationResult(null);
+
+      setOptimizationError(
+        error instanceof Error
+          ? error.message
+          : "Route optimization failed."
+      );
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
   const resetPlanner = () => {
     setStartPoint("");
     setStartCoordinates(null);
-    setStops([createStop(1), createStop(2), createStop(3)]);
+    setStops([
+      createStop(1),
+      createStop(2),
+      createStop(3),
+    ]);
     setMethod("Recommended");
     setPriority("Shortest time");
+    setOptimizationResult(null);
+    setOptimizationError(null);
   };
+
+  const orderedStops = optimizationResult
+    ? optimizationResult.ordered_stop_ids
+        .map((id) =>
+          stops.find((stop) => String(stop.id) === id)
+        )
+        .filter((stop): stop is Stop => Boolean(stop))
+    : stops;
+
+  const selectedAlgorithm =
+    optimizationResult?.algorithm_used;
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -136,7 +246,9 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-slate-600">System Online</span>
+              <span className="text-slate-600">
+                System Online
+              </span>
             </div>
 
             <button
@@ -162,11 +274,17 @@ export default function Home() {
             <div className="border-b border-slate-100 p-5">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-                  <Route size={17} className="text-slate-700" />
+                  <Route
+                    size={17}
+                    className="text-slate-700"
+                  />
                 </div>
 
                 <div>
-                  <h2 className="text-sm font-semibold">Plan Delivery</h2>
+                  <h2 className="text-sm font-semibold">
+                    Plan Delivery
+                  </h2>
+
                   <p className="text-xs text-slate-500">
                     Build your delivery trip
                   </p>
@@ -211,8 +329,14 @@ export default function Home() {
                       <motion.div
                         key={stop.id}
                         layout
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{
+                          opacity: 0,
+                          y: -8,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
                         exit={{
                           opacity: 0,
                           height: 0,
@@ -249,7 +373,9 @@ export default function Home() {
 
                           <button
                             type="button"
-                            onClick={() => removeStop(stop.id)}
+                            onClick={() =>
+                              removeStop(stop.id)
+                            }
                             aria-label={`Remove ${stop.name}`}
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100"
                           >
@@ -274,7 +400,10 @@ export default function Home() {
               {/* Optimization settings */}
               <div className="space-y-3 border-t border-slate-100 pt-5">
                 <div className="flex items-center gap-2">
-                  <Zap size={15} className="text-slate-500" />
+                  <Zap
+                    size={15}
+                    className="text-slate-500"
+                  />
 
                   <p className="text-xs font-medium text-slate-600">
                     Optimization settings
@@ -293,7 +422,10 @@ export default function Home() {
                     <select
                       id="method"
                       value={method}
-                      onChange={(event) => setMethod(event.target.value)}
+                      onChange={(event) => {
+                        setMethod(event.target.value);
+                        setOptimizationResult(null);
+                      }}
                       className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
                     >
                       <option>Recommended</option>
@@ -320,7 +452,10 @@ export default function Home() {
                     <select
                       id="priority"
                       value={priority}
-                      onChange={(event) => setPriority(event.target.value)}
+                      onChange={(event) => {
+                        setPriority(event.target.value);
+                        setOptimizationResult(null);
+                      }}
                       className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
                     >
                       <option>Shortest time</option>
@@ -341,15 +476,45 @@ export default function Home() {
             <div className="space-y-2 border-t border-slate-100 p-5">
               <button
                 type="button"
+                onClick={handleOptimizeRoute}
                 disabled={
+                  isOptimizing ||
                   !startCoordinates ||
-                  stops.filter((stop) => stop.coordinates).length < 2
+                  stops.filter(
+                    (stop) => stop.coordinates !== null
+                  ).length < 2
                 }
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               >
                 <Route size={16} />
-                Optimize Route
+
+                {isOptimizing
+                  ? "Optimizing..."
+                  : "Optimize Route"}
               </button>
+
+              {optimizationError && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-[11px] font-medium text-red-600">
+                  {optimizationError}
+                </p>
+              )}
+
+              {optimizationResult && (
+                <div className="rounded-xl bg-emerald-50 p-3">
+                  <p className="text-[10px] font-semibold text-emerald-700">
+                    Optimization complete
+                  </p>
+
+                  <p className="mt-1 text-[11px] text-emerald-600">
+                    Route generated for{" "}
+                    {
+                      optimizationResult.metrics
+                        .stop_count
+                    }{" "}
+                    stops.
+                  </p>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -366,14 +531,21 @@ export default function Home() {
           <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-slate-200 bg-[#edf2f7] shadow-sm">
             <div className="absolute inset-0">
               <RouteMap
-  startCoordinates={startCoordinates}
-  stopLocations={stops
-    .filter((stop) => stop.coordinates !== null)
-    .map((stop) => ({
-      id: stop.id,
-      coordinates: stop.coordinates as [number, number],
-    }))}
-/>
+                startCoordinates={startCoordinates}
+                stopLocations={stops
+                  .filter(
+                    (stop) =>
+                      stop.coordinates !== null
+                  )
+                  .map((stop) => ({
+                    id: stop.id,
+                    coordinates:
+                      stop.coordinates as [
+                        number,
+                        number,
+                      ],
+                  }))}
+              />
             </div>
 
             <div className="pointer-events-none absolute left-5 top-5 z-10 rounded-xl border border-white/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
@@ -398,12 +570,22 @@ export default function Home() {
                     </p>
 
                     <h2 className="mt-1 text-base font-semibold">
-                      Optimized Route
+                      {optimizationResult
+                        ? "Optimized Route"
+                        : "Route Preview"}
                     </h2>
                   </div>
 
-                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                    Ready
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                      optimizationResult
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {optimizationResult
+                      ? "Optimized"
+                      : "Ready"}
                   </span>
                 </div>
               </div>
@@ -414,55 +596,79 @@ export default function Home() {
                 </p>
 
                 <div className="space-y-2">
-                  {stops.map((stop, index) => (
-                    <div
-                      key={stop.id}
-                      className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
-                        {index + 1}
+                  {orderedStops.length > 0 ? (
+                    orderedStops.map((stop, index) => (
+                      <div
+                        key={stop.id}
+                        className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
+                      >
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
+                          {index + 1}
+                        </div>
+
+                        <span className="truncate text-xs font-medium text-slate-700">
+                          {stop.name}
+                        </span>
+
+                        <span className="ml-auto text-[9px] text-slate-400">
+                          {stop.coordinates
+                            ? "Ready"
+                            : "Missing"}
+                        </span>
                       </div>
-
-                      <span className="truncate text-xs font-medium text-slate-700">
-                        {stop.name}
-                      </span>
-
-                      <ChevronDown
-                        size={13}
-                        className="ml-auto rotate-[-90deg] text-slate-300"
-                      />
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
+                      Select delivery locations to
+                      build the route.
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2">
                   <div className="rounded-xl bg-slate-50 p-3">
                     <div className="flex items-center gap-1.5 text-slate-400">
                       <Navigation size={13} />
-                      <span className="text-[10px]">Distance</span>
+                      <span className="text-[10px]">
+                        Distance
+                      </span>
                     </div>
 
-                    <p className="mt-1 text-sm font-semibold">-- km</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {optimizationResult
+                        ? `${optimizationResult.metrics.total_distance_km.toFixed(2)} km`
+                        : "-- km"}
+                    </p>
                   </div>
 
                   <div className="rounded-xl bg-slate-50 p-3">
                     <div className="flex items-center gap-1.5 text-slate-400">
                       <Clock3 size={13} />
-                      <span className="text-[10px]">ETA</span>
+                      <span className="text-[10px]">
+                        ETA
+                      </span>
                     </div>
 
-                    <p className="mt-1 text-sm font-semibold">-- min</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {optimizationResult
+                        ? `${optimizationResult.metrics.estimated_duration_minutes.toFixed(1)} min`
+                        : "-- min"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="mt-2 rounded-xl bg-slate-50 p-3">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Package size={13} />
-                    <span className="text-[10px]">Stops</span>
+                    <span className="text-[10px]">
+                      Stops
+                    </span>
                   </div>
 
                   <p className="mt-1 text-sm font-semibold">
-                    {stops.length}
+                    {optimizationResult
+                      ? optimizationResult.metrics.stop_count
+                      : stops.length}
                   </p>
                 </div>
               </div>
@@ -470,8 +676,8 @@ export default function Home() {
               <div className="border-t border-slate-100 p-5">
                 <button
                   type="button"
-                  disabled
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-semibold text-slate-400"
+                  disabled={!optimizationResult}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-semibold text-slate-400 disabled:cursor-not-allowed"
                 >
                   <Navigation size={16} />
                   Start Delivery
@@ -479,10 +685,13 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Analysis preview */}
+            {/* Analysis */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
-                <Activity size={16} className="text-slate-500" />
+                <Activity
+                  size={16}
+                  className="text-slate-500"
+                />
 
                 <h3 className="text-sm font-semibold">
                   Algorithm Analysis
@@ -490,32 +699,51 @@ export default function Home() {
               </div>
 
               <p className="mt-1 text-[11px] text-slate-400">
-                Available after optimization
+                Results from the selected optimizer
               </p>
 
               <div className="mt-4 space-y-2">
-                {[
-                  ["Nearest Neighbor", "--"],
-                  ["2-opt", "--"],
-                  ["Brute Force", "--"],
-                ].map(([name, value]) => (
-                  <div
-                    key={name}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5"
-                  >
-                    <span className="text-xs text-slate-600">
-                      {name}
-                    </span>
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
+                  <span className="text-xs text-slate-600">
+                    Algorithm
+                  </span>
 
-                    <span className="text-xs font-semibold text-slate-400">
-                      {value}
-                    </span>
-                  </div>
-                ))}
+                  <span className="text-xs font-semibold text-slate-700">
+                    {selectedAlgorithm ??
+                      "Not run"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
+                  <span className="text-xs text-slate-600">
+                    Computation time
+                  </span>
+
+                  <span className="text-xs font-semibold text-slate-700">
+                    {optimizationResult
+                      ? `${optimizationResult.computation_time_ms.toFixed(2)} ms`
+                      : "--"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
+                  <span className="text-xs text-slate-600">
+                    Distance
+                  </span>
+
+                  <span className="text-xs font-semibold text-slate-700">
+                    {optimizationResult
+                      ? `${optimizationResult.metrics.total_distance_km.toFixed(2)} km`
+                      : "--"}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
-                <Clock3 size={14} className="text-slate-400" />
+                <Clock3
+                  size={14}
+                  className="text-slate-400"
+                />
 
                 <div>
                   <p className="text-[10px] font-medium text-slate-500">
@@ -523,7 +751,9 @@ export default function Home() {
                   </p>
 
                   <p className="text-xs font-semibold text-slate-700">
-                    No active delivery
+                    {optimizationResult
+                      ? "Route optimized"
+                      : "Awaiting optimization"}
                   </p>
                 </div>
               </div>
