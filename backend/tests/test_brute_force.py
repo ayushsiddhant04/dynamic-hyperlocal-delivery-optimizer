@@ -37,17 +37,17 @@ def test_brute_force_finds_best_round_trip(monkeypatch):
     ]
 
     distance_matrix = [
-        [0.0, 1.0, 2.0, 2.0],
-        [1.0, 0.0, 100.0, 100.0],
-        [2.0, 100.0, 0.0, 1.0],
-        [2.0, 1.0, 100.0, 0.0],
+        [0.0, 1.0, 8.0, 9.0],
+        [1.0, 0.0, 4.0, 2.0],
+        [8.0, 4.0, 0.0, 3.0],
+        [9.0, 2.0, 3.0, 0.0],
     ]
 
     duration_matrix = [
-        [0.0, 1.0, 2.0, 2.0],
-        [1.0, 0.0, 100.0, 100.0],
-        [2.0, 100.0, 0.0, 1.0],
-        [2.0, 1.0, 100.0, 0.0],
+        [0.0, 1.0, 8.0, 9.0],
+        [1.0, 0.0, 4.0, 2.0],
+        [8.0, 4.0, 0.0, 3.0],
+        [9.0, 2.0, 3.0, 0.0],
     ]
 
     monkeypatch.setattr(
@@ -60,12 +60,16 @@ def test_brute_force_finds_best_round_trip(monkeypatch):
     result = optimizer.optimize(
         depot=depot,
         stops=stops,
+        parameters={
+            "distance_weight": 0.5,
+            "time_weight": 0.5,
+        },
     )
 
     assert result.status == "success"
     assert result.algorithm_used == "brute_force"
-    assert result.ordered_stop_ids == ["B", "C", "A"]
+    assert result.ordered_stop_ids == ["A", "C", "B"]
     assert result.metrics.stop_count == 3
-    assert result.metrics.total_distance_km == 5.0
-    assert result.metrics.total_duration_minutes == 5.0
+    assert result.metrics.total_distance_km == 14.0
+    assert result.metrics.total_duration_minutes == 14.0
     assert result.computation_time_ms >= 0

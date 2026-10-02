@@ -1,6 +1,6 @@
 from itertools import permutations
 from time import perf_counter
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from app.algorithms.base import BaseRouteOptimizer
 from app.models.schemas import (
@@ -17,7 +17,8 @@ class BruteForceOptimizer(BaseRouteOptimizer):
     name = "Brute Force (Exact)"
     description = (
         "Exhaustively evaluates every possible delivery order and "
-        "selects the route with the lowest combined distance-and-time cost."
+        "selects the complete round-trip route with the lowest "
+        "weighted road-distance and travel-time cost."
     )
     paradigm = "Exhaustive Search"
     time_complexity = "O(N!)"
@@ -37,7 +38,7 @@ class BruteForceOptimizer(BaseRouteOptimizer):
                 ordered_stop_ids=[],
                 metrics=RouteMetrics(
                     total_distance_km=0.0,
-                    estimated_duration_minutes=0.0,
+                    total_duration_minutes=0.0,
                     stop_count=0,
                 ),
                 computation_time_ms=0.0,
@@ -45,29 +46,26 @@ class BruteForceOptimizer(BaseRouteOptimizer):
                 message="No delivery stops were provided.",
             )
 
-        distance_weight = float(
-            parameters.get("distance_weight", 0.5)
-        )
-        time_weight = float(
-            parameters.get("time_weight", 0.5)
-        )
-        reference_speed_kmh = float(
-            parameters.get("reference_speed_kmh", 30.0)
-        )
+        distance_weight = parameters.get("distance_weight")
+        time_weight = parameters.get("time_weight")
+
+        if distance_weight is None or time_weight is None:
+            raise ValueError(
+                "distance_weight and time_weight must be provided."
+            )
+
+        distance_weight = float(distance_weight)
+        time_weight = float(time_weight)
 
         if distance_weight < 0 or time_weight < 0:
             raise ValueError(
                 "distance_weight and time_weight cannot be negative."
             )
 
-        if distance_weight == 0 and time_weight == 0:
+        if distance_weight + time_weight <= 0:
             raise ValueError(
-                "At least one of distance_weight or time_weight must be greater than 0."
-            )
-
-        if reference_speed_kmh <= 0:
-            raise ValueError(
-                "reference_speed_kmh must be greater than 0."
+                "At least one of distance_weight or time_weight "
+                "must be greater than 0."
             )
 
         weight_sum = distance_weight + time_weight
@@ -76,16 +74,15 @@ class BruteForceOptimizer(BaseRouteOptimizer):
 
         locations = [depot] + [stop.location for stop in stops]
 
-        distance_matrix, duration_matrix = compute_road_matrices(locations)
+        distance_matrix, duration_matrix = compute_road_matrices(
+            locations
+        )
 
         stop_count = len(stops)
 
-        best_route: Optional[Tuple[int, ...]] = None
-        best_distance_km = float("inf")
-        best_duration_minutes = float("inf")
-        best_cost = float("inf")
-
         algorithm_start = perf_counter()
+
+        routes: List[Dict[str, Any]] = []
 
         for route in permutations(range(1, stop_count + 1)):
             current_index = 0
@@ -104,55 +101,79 @@ class BruteForceOptimizer(BaseRouteOptimizer):
 
                 current_index = next_index
 
-            total_distance_km += distance_matrix[current_index][0]
-            total_duration_minutes += duration_matrix[current_index][0]
+            # Complete round trip:
+            # depot -> all deliveries -> depot
+            total_distance_km += distance_matrix[
+                current_index
+            ][0]
 
-            time_equivalent_km = (
-                total_duration_minutes
-                * reference_speed_kmh
-                / 60.0
+            total_duration_minutes += duration_matrix[
+                current_index
+            ][0]
+
+            routes.append(
+                {
+                    "route": route,
+                    "distance_km": total_distance_km,
+                    "duration_minutes": total_duration_minutes,
+                }
             )
 
-            combined_cost = (
-                distance_weight * total_distance_km
-                + time_weight * time_equivalent_km
+        min_distance = min(
+            route["distance_km"]
+            for route in routes
+        )
+
+        max_distance = max(
+            route["distance_km"]
+            for route in routes
+        )
+
+        min_duration = min(
+            route["duration_minutes"]
+            for route in routes
+        )
+
+        max_duration = max(
+            route["duration_minutes"]
+            for route in routes
+        )
+
+        distance_range = max_distance - min_distance
+        duration_range = max_duration - min_duration
+
+        for route_data in routes:
+            if distance_range == 0:
+                normalized_distance = 0.0
+            else:
+                normalized_distance = (
+                    route_data["distance_km"] - min_distance
+                ) / distance_range
+
+            if duration_range == 0:
+                normalized_duration = 0.0
+            else:
+                normalized_duration = (
+                    route_data["duration_minutes"] - min_duration
+                ) / duration_range
+
+            route_data["cost"] = (
+                distance_weight * normalized_distance
+                + time_weight * normalized_duration
             )
 
-            route_ids = tuple(
-                stops[index - 1].id
-                for index in route
-            )
-
-            best_route_ids = (
+        best_route_data = min(
+            routes,
+            key=lambda route_data: (
+                route_data["cost"],
+                route_data["distance_km"],
+                route_data["duration_minutes"],
                 tuple(
                     stops[index - 1].id
-                    for index in best_route
-                )
-                if best_route is not None
-                else ()
-            )
-
-            candidate_key = (
-                combined_cost,
-                total_distance_km,
-                total_duration_minutes,
-                route_ids,
-            )
-
-            best_key = (
-                best_cost,
-                best_distance_km,
-                best_duration_minutes,
-                best_route_ids,
-            )
-
-            if candidate_key < best_key:
-                best_route = route
-                best_distance_km = total_distance_km
-                best_duration_minutes = total_duration_minutes
-                best_cost = combined_cost
-
-            current_index = 0
+                    for index in route_data["route"]
+                ),
+            ),
+        )
 
         computation_time_ms = (
             perf_counter() - algorithm_start
@@ -160,7 +181,7 @@ class BruteForceOptimizer(BaseRouteOptimizer):
 
         ordered_stop_ids = [
             stops[index - 1].id
-            for index in best_route
+            for index in best_route_data["route"]
         ]
 
         return OptimizationResult(
@@ -168,11 +189,11 @@ class BruteForceOptimizer(BaseRouteOptimizer):
             ordered_stop_ids=ordered_stop_ids,
             metrics=RouteMetrics(
                 total_distance_km=round(
-                    best_distance_km,
+                    best_route_data["distance_km"],
                     3,
                 ),
                 total_duration_minutes=round(
-                    best_duration_minutes,
+                    best_route_data["duration_minutes"],
                     1,
                 ),
                 stop_count=stop_count,
@@ -184,8 +205,8 @@ class BruteForceOptimizer(BaseRouteOptimizer):
             status="success",
             message=(
                 "Exact route selected by exhaustive search using "
-                f"{distance_weight:.0%} distance and "
-                f"{time_weight:.0%} travel-time weighting, "
-                "with a return to the depot."
+                f"{distance_weight:.0%} road distance and "
+                f"{time_weight:.0%} road travel time, "
+                "including the return to the depot."
             ),
         )

@@ -1,7 +1,3 @@
-/**
- * RouteFlow Core TypeScript Type Definitions
- */
-
 export interface Location {
   latitude: number;
   longitude: number;
@@ -29,14 +25,20 @@ export interface AlgorithmMetadata {
 
 export interface RouteMetrics {
   total_distance_km: number;
-  estimated_duration_minutes: number;
+  total_duration_minutes: number;
   stop_count: number;
+}
+
+export interface OptimizationObjective {
+  distance_weight: number;
+  time_weight: number;
 }
 
 export interface OptimizationRequest {
   depot: Location;
   stops: DeliveryStop[];
   algorithm: string;
+  objective: OptimizationObjective;
   parameters?: Record<string, unknown>;
 }
 

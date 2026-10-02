@@ -41,7 +41,12 @@ def test_nearest_neighbor_orders_stops_greedily():
     result = optimizer.optimize(
         depot=depot,
         stops=stops,
-    )
+        parameters={
+        "distance_weight": 0.5,
+        "time_weight": 0.5,
+    },
+)
+
 
     assert result.status == "success"
     assert result.algorithm_used == "nearest_neighbor"

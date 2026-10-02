@@ -53,10 +53,14 @@ export default function Home() {
   const [method, setMethod] = useState("Recommended");
   const [priority, setPriority] = useState("Shortest time");
 
+  const [distanceWeight, setDistanceWeight] = useState(50);
+  const [timeWeight, setTimeWeight] = useState(50);
+
   const [optimizationResult, setOptimizationResult] =
     useState<OptimizationResult | null>(null);
 
   const [isOptimizing, setIsOptimizing] = useState(false);
+
   const [optimizationError, setOptimizationError] =
     useState<string | null>(null);
 
@@ -79,7 +83,11 @@ export default function Home() {
         ? Math.max(...stops.map((stop) => stop.id)) + 1
         : 1;
 
-    setStops((current) => [...current, createStop(nextId)]);
+    setStops((current) => [
+      ...current,
+      createStop(nextId),
+    ]);
+
     setOptimizationResult(null);
     setOptimizationError(null);
   };
@@ -119,6 +127,21 @@ export default function Home() {
     []
   );
 
+  const handleDistanceWeightChange = (
+    value: number
+  ) => {
+    const nextDistanceWeight = Math.min(
+      100,
+      Math.max(0, value)
+    );
+
+    setDistanceWeight(nextDistanceWeight);
+    setTimeWeight(100 - nextDistanceWeight);
+    setOptimizationResult(null);
+  };
+
+  
+
   const handleOptimizeRoute = async () => {
     setOptimizationError(null);
 
@@ -140,13 +163,25 @@ export default function Home() {
       return;
     }
 
+    if (
+      distanceWeight === 0 &&
+      timeWeight === 0
+    ) {
+      setOptimizationError(
+        "Please assign a weight to distance or travel time."
+      );
+      return;
+    }
+
     const algorithm =
       method === "Recommended" ||
       method === "Nearest Neighbor"
         ? "nearest_neighbor"
         : method === "2-opt"
           ? "two_opt"
-          : "nearest_neighbor";
+          : method === "Brute Force"
+            ? "brute_force"
+            : "nearest_neighbor";
 
     const request: OptimizationRequest = {
       depot: {
@@ -166,10 +201,17 @@ export default function Home() {
         },
         package_count: 1,
         priority:
-          priority === "Time-critical windows" ? 5 : 1,
+          priority === "Time-critical windows"
+            ? 5
+            : 1,
       })),
 
       algorithm,
+
+      objective: {
+        distance_weight: distanceWeight / 100,
+        time_weight: timeWeight / 100,
+      },
     };
 
     try {
@@ -194,13 +236,19 @@ export default function Home() {
   const resetPlanner = () => {
     setStartPoint("");
     setStartCoordinates(null);
+
     setStops([
       createStop(1),
       createStop(2),
       createStop(3),
     ]);
+
     setMethod("Recommended");
     setPriority("Shortest time");
+
+    setDistanceWeight(50);
+    setTimeWeight(50);
+
     setOptimizationResult(null);
     setOptimizationError(null);
   };
@@ -208,9 +256,14 @@ export default function Home() {
   const orderedStops = optimizationResult
     ? optimizationResult.ordered_stop_ids
         .map((id) =>
-          stops.find((stop) => String(stop.id) === id)
+          stops.find(
+            (stop) => String(stop.id) === id
+          )
         )
-        .filter((stop): stop is Stop => Boolean(stop))
+        .filter(
+          (stop): stop is Stop =>
+            Boolean(stop)
+        )
     : stops;
 
   const selectedAlgorithm =
@@ -218,7 +271,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-5 lg:px-7">
           <div className="flex items-center gap-3">
@@ -246,6 +298,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
+
               <span className="text-slate-600">
                 System Online
               </span>
@@ -266,10 +319,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main */}
       <section className="mx-auto max-w-[1800px] p-4 lg:p-6">
         <div className="grid min-h-[calc(100vh-104px)] gap-4 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
-          {/* Planner */}
           <aside className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-5">
               <div className="flex items-center gap-2">
@@ -293,7 +344,6 @@ export default function Home() {
             </div>
 
             <div className="flex-1 space-y-6 p-5">
-              {/* Starting point */}
               <div>
                 <label className="mb-2 block text-xs font-medium text-slate-600">
                   Starting point
@@ -301,7 +351,9 @@ export default function Home() {
 
                 <LocationSearch
                   placeholder="Search shop or starting point"
-                  onSelect={handleStartLocationSelect}
+                  onSelect={
+                    handleStartLocationSelect
+                  }
                 />
 
                 {startCoordinates && (
@@ -311,7 +363,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Delivery stops */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <label className="text-xs font-medium text-slate-600">
@@ -397,8 +448,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Optimization settings */}
-              <div className="space-y-3 border-t border-slate-100 pt-5">
+              <div className="space-y-4 border-t border-slate-100 pt-5">
                 <div className="flex items-center gap-2">
                   <Zap
                     size={15}
@@ -425,12 +475,14 @@ export default function Home() {
                       onChange={(event) => {
                         setMethod(event.target.value);
                         setOptimizationResult(null);
+                        setOptimizationError(null);
                       }}
                       className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
                     >
                       <option>Recommended</option>
                       <option>Nearest Neighbor</option>
                       <option>2-opt</option>
+                      <option>Brute Force</option>
                     </select>
 
                     <ChevronDown
@@ -445,7 +497,7 @@ export default function Home() {
                     htmlFor="priority"
                     className="mb-1.5 block text-[11px] text-slate-500"
                   >
-                    Priority
+                    Delivery priority
                   </label>
 
                   <div className="relative">
@@ -455,6 +507,7 @@ export default function Home() {
                       onChange={(event) => {
                         setPriority(event.target.value);
                         setOptimizationResult(null);
+                        setOptimizationError(null);
                       }}
                       className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 focus:bg-white"
                     >
@@ -469,10 +522,45 @@ export default function Home() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label
+                      htmlFor="distance-weight"
+                      className="text-[11px] text-slate-500"
+                    >
+                      Distance vs time
+                    </label>
+
+                    <span className="text-[10px] font-semibold text-slate-700">
+                      {distanceWeight}% distance /{" "}
+                      {timeWeight}% time
+                    </span>
+                  </div>
+
+                  <input
+                    id="distance-weight"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={distanceWeight}
+                    onChange={(event) =>
+                      handleDistanceWeightChange(
+                        Number(event.target.value)
+                      )
+                    }
+                    className="w-full accent-slate-900"
+                  />
+
+                  <div className="mt-1 flex justify-between text-[9px] text-slate-400">
+                    <span>Fastest delivery</span>
+                    <span>Shortest distance</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Planner actions */}
             <div className="space-y-2 border-t border-slate-100 p-5">
               <button
                 type="button"
@@ -481,7 +569,8 @@ export default function Home() {
                   isOptimizing ||
                   !startCoordinates ||
                   stops.filter(
-                    (stop) => stop.coordinates !== null
+                    (stop) =>
+                      stop.coordinates !== null
                   ).length < 2
                 }
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
@@ -527,7 +616,6 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* Real Mapbox map */}
           <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-slate-200 bg-[#edf2f7] shadow-sm">
             <div className="absolute inset-0">
               <RouteMap
@@ -559,7 +647,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Route summary */}
           <aside className="flex flex-col gap-4">
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5">
@@ -597,26 +684,28 @@ export default function Home() {
 
                 <div className="space-y-2">
                   {orderedStops.length > 0 ? (
-                    orderedStops.map((stop, index) => (
-                      <div
-                        key={stop.id}
-                        className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
-                      >
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
-                          {index + 1}
+                    orderedStops.map(
+                      (stop, index) => (
+                        <div
+                          key={stop.id}
+                          className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600">
+                            {index + 1}
+                          </div>
+
+                          <span className="truncate text-xs font-medium text-slate-700">
+                            {stop.name}
+                          </span>
+
+                          <span className="ml-auto text-[9px] text-slate-400">
+                            {stop.coordinates
+                              ? "Ready"
+                              : "Missing"}
+                          </span>
                         </div>
-
-                        <span className="truncate text-xs font-medium text-slate-700">
-                          {stop.name}
-                        </span>
-
-                        <span className="ml-auto text-[9px] text-slate-400">
-                          {stop.coordinates
-                            ? "Ready"
-                            : "Missing"}
-                        </span>
-                      </div>
-                    ))
+                      )
+                    )
                   ) : (
                     <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400">
                       Select delivery locations to
@@ -629,6 +718,7 @@ export default function Home() {
                   <div className="rounded-xl bg-slate-50 p-3">
                     <div className="flex items-center gap-1.5 text-slate-400">
                       <Navigation size={13} />
+
                       <span className="text-[10px]">
                         Distance
                       </span>
@@ -636,7 +726,9 @@ export default function Home() {
 
                     <p className="mt-1 text-sm font-semibold">
                       {optimizationResult
-                        ? `${optimizationResult.metrics.total_distance_km.toFixed(2)} km`
+                        ? `${optimizationResult.metrics.total_distance_km.toFixed(
+                            2
+                          )} km`
                         : "-- km"}
                     </p>
                   </div>
@@ -644,14 +736,17 @@ export default function Home() {
                   <div className="rounded-xl bg-slate-50 p-3">
                     <div className="flex items-center gap-1.5 text-slate-400">
                       <Clock3 size={13} />
+
                       <span className="text-[10px]">
-                        ETA
+                        Travel time
                       </span>
                     </div>
 
                     <p className="mt-1 text-sm font-semibold">
                       {optimizationResult
-                        ? `${optimizationResult.metrics.estimated_duration_minutes.toFixed(1)} min`
+                        ? `${optimizationResult.metrics.total_duration_minutes.toFixed(
+                            1
+                          )} min`
                         : "-- min"}
                     </p>
                   </div>
@@ -660,6 +755,7 @@ export default function Home() {
                 <div className="mt-2 rounded-xl bg-slate-50 p-3">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Package size={13} />
+
                     <span className="text-[10px]">
                       Stops
                     </span>
@@ -667,10 +763,28 @@ export default function Home() {
 
                   <p className="mt-1 text-sm font-semibold">
                     {optimizationResult
-                      ? optimizationResult.metrics.stop_count
+                      ? optimizationResult.metrics
+                          .stop_count
                       : stops.length}
                   </p>
                 </div>
+
+                {optimizationResult && (
+                  <div className="mt-2 rounded-xl bg-slate-50 p-3">
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <Zap size={13} />
+
+                      <span className="text-[10px]">
+                        Objective
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs font-semibold text-slate-700">
+                      {distanceWeight}% distance /{" "}
+                      {timeWeight}% time
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-100 p-5">
@@ -685,7 +799,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Analysis */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
                 <Activity
@@ -716,12 +829,14 @@ export default function Home() {
 
                 <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
                   <span className="text-xs text-slate-600">
-                    Computation time
+                    Algorithm time
                   </span>
 
                   <span className="text-xs font-semibold text-slate-700">
                     {optimizationResult
-                      ? `${optimizationResult.computation_time_ms.toFixed(2)} ms`
+                      ? `${optimizationResult.computation_time_ms.toFixed(
+                          2
+                        )} ms`
                       : "--"}
                   </span>
                 </div>
@@ -733,7 +848,23 @@ export default function Home() {
 
                   <span className="text-xs font-semibold text-slate-700">
                     {optimizationResult
-                      ? `${optimizationResult.metrics.total_distance_km.toFixed(2)} km`
+                      ? `${optimizationResult.metrics.total_distance_km.toFixed(
+                          2
+                        )} km`
+                      : "--"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
+                  <span className="text-xs text-slate-600">
+                    Travel time
+                  </span>
+
+                  <span className="text-xs font-semibold text-slate-700">
+                    {optimizationResult
+                      ? `${optimizationResult.metrics.total_duration_minutes.toFixed(
+                          1
+                        )} min`
                       : "--"}
                   </span>
                 </div>
