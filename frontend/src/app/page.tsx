@@ -532,7 +532,7 @@ export default function Home() {
             <div className="absolute inset-0">
               <RouteMap
                 startCoordinates={startCoordinates}
-                stopLocations={stops
+                stopLocations={orderedStops
                   .filter(
                     (stop) =>
                       stop.coordinates !== null
