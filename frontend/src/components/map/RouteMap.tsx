@@ -4,16 +4,25 @@ import { useEffect, useRef } from "react";
 import * as mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
+type StopLocation = {
+  id: number;
+  coordinates: [number, number];
+};
+
 type RouteMapProps = {
   startCoordinates?: [number, number] | null;
+  stopLocations?: StopLocation[];
 };
 
 export default function RouteMap({
   startCoordinates = null,
+  stopLocations = [],
 }: RouteMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+
   const startMarker = useRef<mapboxgl.Marker | null>(null);
+  const stopMarkers = useRef<mapboxgl.Marker[]>([]);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) {
@@ -42,7 +51,13 @@ export default function RouteMap({
 
     return () => {
       startMarker.current?.remove();
+
+      stopMarkers.current.forEach((marker) => {
+        marker.remove();
+      });
+
       startMarker.current = null;
+      stopMarkers.current = [];
 
       map.current?.remove();
       map.current = null;
@@ -70,6 +85,35 @@ export default function RouteMap({
       .setLngLat([longitude, latitude])
       .addTo(map.current);
   }, [startCoordinates]);
+
+  useEffect(() => {
+    if (!map.current) {
+      return;
+    }
+
+    stopMarkers.current.forEach((marker) => {
+      marker.remove();
+    });
+
+    stopMarkers.current = [];
+
+    stopLocations.forEach((stop, index) => {
+      const markerElement = document.createElement("div");
+
+      markerElement.className =
+        "flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-600 text-[10px] font-semibold text-white shadow-md";
+
+      markerElement.textContent = String(index + 1);
+
+      const marker = new mapboxgl.Marker({
+        element: markerElement,
+      })
+        .setLngLat(stop.coordinates)
+        .addTo(map.current!);
+
+      stopMarkers.current.push(marker);
+    });
+  }, [stopLocations]);
 
   return (
     <div
