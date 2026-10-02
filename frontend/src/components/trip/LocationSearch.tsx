@@ -28,30 +28,37 @@ export default function LocationSearch({
 
     let cancelled = false;
 
-    const initializeGeocoder = async () => {
-      const { MapboxGeocoder } = await import("@mapbox/search-js-web");
+    const initializeSearchBox = async () => {
+      const { MapboxSearchBox } = await import(
+        "@mapbox/search-js-web"
+      );
 
       if (cancelled) {
         return;
       }
 
-      const geocoder = new MapboxGeocoder();
+      const searchBox = new MapboxSearchBox();
 
-      geocoder.accessToken = token;
+      searchBox.accessToken = token;
 
-      geocoder.options = {
+      searchBox.options = {
         language: "en",
         country: "IN",
         types: "address,poi",
       };
 
-      geocoder.placeholder = placeholder;
+      searchBox.placeholder = placeholder;
 
-      geocoder.addEventListener("retrieve", (event) => {
-        const feature = event.detail;
+      searchBox.addEventListener("retrieve", (event) => {
+        const response = event.detail;
+        const feature = response.features?.[0];
+
         const coordinates = feature?.geometry?.coordinates;
 
-        if (Array.isArray(coordinates) && coordinates.length >= 2) {
+        if (
+          Array.isArray(coordinates) &&
+          coordinates.length >= 2
+        ) {
           onSelect({
             address:
               feature.properties?.full_address ||
@@ -67,10 +74,12 @@ export default function LocationSearch({
 
       container.innerHTML = "";
 
-      container.appendChild(geocoder as unknown as Node);
+      container.appendChild(
+        searchBox as unknown as Node
+      );
     };
 
-    initializeGeocoder();
+    initializeSearchBox();
 
     return () => {
       cancelled = true;

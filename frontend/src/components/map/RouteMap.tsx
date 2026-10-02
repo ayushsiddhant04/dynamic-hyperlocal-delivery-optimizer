@@ -4,12 +4,21 @@ import { useEffect, useRef } from "react";
 import * as mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-export default function RouteMap() {
+type RouteMapProps = {
+  startCoordinates?: [number, number] | null;
+};
+
+export default function RouteMap({
+  startCoordinates = null,
+}: RouteMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const startMarker = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    if (!mapContainer.current || map.current) {
+      return;
+    }
 
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -26,18 +35,46 @@ export default function RouteMap() {
       zoom: 11,
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.current.addControl(
+      new mapboxgl.NavigationControl(),
+      "top-right"
+    );
 
     return () => {
+      startMarker.current?.remove();
+      startMarker.current = null;
+
       map.current?.remove();
       map.current = null;
     };
   }, []);
 
+  useEffect(() => {
+    if (!map.current || !startCoordinates) {
+      return;
+    }
+
+    const [longitude, latitude] = startCoordinates;
+
+    map.current.flyTo({
+      center: [longitude, latitude],
+      zoom: 14,
+      duration: 1200,
+    });
+
+    startMarker.current?.remove();
+
+    startMarker.current = new mapboxgl.Marker({
+      color: "#111827",
+    })
+      .setLngLat([longitude, latitude])
+      .addTo(map.current);
+  }, [startCoordinates]);
+
   return (
     <div
       ref={mapContainer}
-      className="h-full w-full rounded-2xl overflow-hidden"
+      className="h-full w-full"
     />
   );
 }
