@@ -71,12 +71,6 @@ export default function RouteMap({
 
     const [longitude, latitude] = startCoordinates;
 
-    map.current.flyTo({
-      center: [longitude, latitude],
-      zoom: 14,
-      duration: 1200,
-    });
-
     startMarker.current?.remove();
 
     startMarker.current = new mapboxgl.Marker({
@@ -113,7 +107,33 @@ export default function RouteMap({
 
       stopMarkers.current.push(marker);
     });
-  }, [stopLocations]);
+
+    const allCoordinates: [number, number][] = [];
+
+    if (startCoordinates) {
+      allCoordinates.push(startCoordinates);
+    }
+
+    stopLocations.forEach((stop) => {
+      allCoordinates.push(stop.coordinates);
+    });
+
+    if (allCoordinates.length === 0) {
+      return;
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+
+    allCoordinates.forEach(([longitude, latitude]) => {
+      bounds.extend([longitude, latitude]);
+    });
+
+    map.current.fitBounds(bounds, {
+      padding: 100,
+      maxZoom: 14,
+      duration: 1000,
+    });
+  }, [startCoordinates, stopLocations]);
 
   return (
     <div
