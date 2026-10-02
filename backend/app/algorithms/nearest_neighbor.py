@@ -9,29 +9,21 @@ from app.models.schemas import (
     RouteMetrics,
 )
 from app.services.distance import (
+    compute_distance_matrix,
     estimate_travel_time_minutes,
-    haversine_distance_km,
 )
 
 
 class NearestNeighborOptimizer(BaseRouteOptimizer):
-    """
-    Greedy Nearest Neighbor heuristic for delivery route sequencing.
-
-    The algorithm starts at the depot and repeatedly selects the
-    closest unvisited delivery stop. After all stops are visited,
-    the route returns to the depot.
-    """
-
-    id: str = "nearest_neighbor"
-    name: str = "Nearest Neighbor (Greedy)"
+    id = "nearest_neighbor"
+    name = "Nearest Neighbor (Greedy)"
     description = (
         "Constructive greedy heuristic that visits the closest "
         "unvisited delivery stop at each step."
     )
-    paradigm: str = "Greedy Heuristic"
-    time_complexity: str = "O(N²)"
-    is_exact: bool = False
+    paradigm = "Greedy Heuristic"
+    time_complexity = "O(N²)"
+    is_exact = False
 
     def optimize(
         self,
@@ -48,16 +40,9 @@ class NearestNeighborOptimizer(BaseRouteOptimizer):
         )
 
         if average_speed_kmh <= 0:
-            raise ValueError(
-                "average_speed_kmh must be greater than 0."
-            )
+            raise ValueError("average_speed_kmh must be greater than 0.")
 
-        # No delivery stops: route has zero travel cost.
         if not stops:
-            computation_time_ms = (
-                perf_counter() - start_time
-            ) * 1000
-
             return OptimizationResult(
                 algorithm_used=self.id,
                 ordered_stop_ids=[],
@@ -67,79 +52,64 @@ class NearestNeighborOptimizer(BaseRouteOptimizer):
                     stop_count=0,
                 ),
                 computation_time_ms=round(
-                    computation_time_ms, 3
+                    (perf_counter() - start_time) * 1000,
+                    3,
                 ),
                 status="success",
-                message="No delivery stops provided.",
+                message="No delivery stops were provided.",
             )
 
-        unvisited = list(stops)
+        locations = [depot] + [stop.location for stop in stops]
+
+        distance_matrix = compute_distance_matrix(locations)
+
+        unvisited = list(range(1, len(locations)))
         ordered_stop_ids: List[str] = []
 
-        current_location = depot
-
+        current_index = 0
         total_distance_km = 0.0
         estimated_duration_minutes = 0.0
 
+        stop_by_index = {
+            index: stop
+            for index, stop in enumerate(stops, start=1)
+        }
+
         while unvisited:
-            # Choose the nearest unvisited delivery stop.
-            next_stop = min(
+            next_index = min(
                 unvisited,
-                key=lambda stop: (
-                    haversine_distance_km(
-                        current_location,
-                        stop.location,
-                    ),
-                    stop.id,
+                key=lambda index: (
+                    distance_matrix[current_index][index],
+                    stop_by_index[index].id,
                 ),
             )
 
-            leg_distance_km = haversine_distance_km(
-                current_location,
-                next_stop.location,
-            )
+            leg_distance_km = distance_matrix[current_index][next_index]
 
             total_distance_km += leg_distance_km
-
-            estimated_duration_minutes += (
-                estimate_travel_time_minutes(
-                    leg_distance_km,
-                    average_speed_kmh,
-                )
-            )
-
-            ordered_stop_ids.append(next_stop.id)
-
-            current_location = next_stop.location
-            unvisited.remove(next_stop)
-
-        # Return to the depot after the final delivery.
-        return_distance_km = haversine_distance_km(
-            current_location,
-            depot,
-        )
-
-        total_distance_km += return_distance_km
-
-        estimated_duration_minutes += (
-            estimate_travel_time_minutes(
-                return_distance_km,
+            estimated_duration_minutes += estimate_travel_time_minutes(
+                leg_distance_km,
                 average_speed_kmh,
             )
-        )
 
-        computation_time_ms = (
-            perf_counter() - start_time
-        ) * 1000
+            ordered_stop_ids.append(stop_by_index[next_index].id)
+
+            current_index = next_index
+            unvisited.remove(next_index)
+
+        return_distance_km = distance_matrix[current_index][0]
+
+        total_distance_km += return_distance_km
+        estimated_duration_minutes += estimate_travel_time_minutes(
+            return_distance_km,
+            average_speed_kmh,
+        )
 
         return OptimizationResult(
             algorithm_used=self.id,
             ordered_stop_ids=ordered_stop_ids,
             metrics=RouteMetrics(
-                total_distance_km=round(
-                    total_distance_km,
-                    3,
-                ),
+                total_distance_km=round(total_distance_km, 3),
                 estimated_duration_minutes=round(
                     estimated_duration_minutes,
                     1,
@@ -147,12 +117,12 @@ class NearestNeighborOptimizer(BaseRouteOptimizer):
                 stop_count=len(stops),
             ),
             computation_time_ms=round(
-                computation_time_ms,
+                (perf_counter() - start_time) * 1000,
                 3,
             ),
             status="success",
             message=(
                 "Route generated using Nearest Neighbor "
-                "with a return to the depot."
+                "with Mapbox road distances and a return to the depot."
             ),
         )

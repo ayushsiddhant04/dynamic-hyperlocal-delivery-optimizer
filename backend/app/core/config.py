@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    MAPBOX_ACCESS_TOKEN: str = ""
     
     # CORS Origins allowed to access API
     CORS_ORIGINS: Union[List[str], str] = [
